@@ -36,7 +36,7 @@ public class ListenerdemoApplication {
         void recieve()
 		{
 			// looks like these are optional ???
-			// auto-startup means these are redundant code 
+			// auto-startup means these are redundant code
 		kmlc.start();
 		cmlc.start();
 
