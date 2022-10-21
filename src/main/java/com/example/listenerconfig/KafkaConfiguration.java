@@ -1,5 +1,6 @@
 package com.example.listenerconfig;
 
+import com.example.wrapper.userInfo;
 import org.apache.kafka.clients.consumer.Consumer;
 import org.apache.kafka.clients.consumer.ConsumerRecord;
 import org.apache.kafka.clients.consumer.RoundRobinAssignor;
@@ -17,6 +18,8 @@ import org.springframework.kafka.core.ConsumerFactory;
 import org.springframework.kafka.core.DefaultKafkaConsumerFactory;
 import org.springframework.kafka.listener.*;
 import org.springframework.kafka.support.Acknowledgment;
+import org.springframework.kafka.support.serializer.JsonDeserializer;
+import org.springframework.kafka.support.serializer.ParseStringDeserializer;
 
 import java.util.HashMap;
 import java.util.Map;
@@ -42,7 +45,7 @@ public class KafkaConfiguration {
         config.put(BOOTSTRAP_SERVERS_CONFIG,"localhost:29092");
         config.put(KEY_DESERIALIZER_CLASS_CONFIG, StringDeserializer.class);
         config.put(VALUE_DESERIALIZER_CLASS_CONFIG,StringDeserializer.class);
-        config.put(GROUP_ID_CONFIG,"secondnewgroup-1");
+        config.put(GROUP_ID_CONFIG,"process-1");
         config.put(ENABLE_AUTO_COMMIT_CONFIG,false);
       //  config.put(PARTITION_ASSIGNMENT_STRATEGY_CONFIG, RoundRobinAssignor.class.getName());
         return config;
@@ -54,9 +57,11 @@ public class KafkaConfiguration {
         config.put(BOOTSTRAP_SERVERS_CONFIG,"localhost:29092");
         config.put(KEY_DESERIALIZER_CLASS_CONFIG, StringDeserializer.class);
         config.put(VALUE_DESERIALIZER_CLASS_CONFIG,StringDeserializer.class);
-        config.put(GROUP_ID_CONFIG,"secondnewgroup-1");
+        config.put(GROUP_ID_CONFIG,"process-1");
         config.put(ENABLE_AUTO_COMMIT_CONFIG,false);
+        config.put(JsonDeserializer.TRUSTED_PACKAGES,"*");
         //  config.put(PARTITION_ASSIGNMENT_STRATEGY_CONFIG, RoundRobinAssignor.class.getName());
+
         return config;
     }
 
@@ -65,14 +70,21 @@ public class KafkaConfiguration {
     @Primary
     public ConsumerFactory<String,String> consumerFactory()
     {
-        return new DefaultKafkaConsumerFactory<>(config_src());
+        // spring kafka's string deserialization wrapper with a purpose built parse function
+        // i can also pass the parser function info as a property in the consumer factory
+        return new DefaultKafkaConsumerFactory<>(config_src(),null , new ParseStringDeserializer<>((s,headers)->"faked deserialization"));
     }
 
     // Common consumer factory for usage by kafka listener container
     @Bean
-    public ConsumerFactory<String,String> consumerFactoryDup()
+    public ConsumerFactory<String,userInfo> consumerFactoryDup()
     {
-        return new DefaultKafkaConsumerFactory<>(config_src1());
+        // using spring kafka json deserializer
+        // producer has type info disabled
+        // trusting all packages for deserialization
+        // can also do this trusted deserialization using properties or in the factory properties
+
+        return new DefaultKafkaConsumerFactory<>(config_src1(), null,new JsonDeserializer<>(userInfo.class).trustedPackages("*"));
     }
 
     // used by the message listener container
@@ -83,6 +95,7 @@ public class KafkaConfiguration {
         ContainerProperties cprops = new ContainerProperties("dummy");
 
         cprops.setLogContainerConfig(true);
+
         // commit is done immediately when Ack() is called inside message listener
         cprops.setAckMode(ContainerProperties.AckMode.MANUAL_IMMEDIATE);
         // delivers polled records individually and an ack must be done after processing
@@ -97,6 +110,7 @@ public class KafkaConfiguration {
 
             }
         });
+
         return cprops;
     }
     // message consumption based on message listener container
@@ -125,12 +139,13 @@ public class KafkaConfiguration {
     }
 
     @Bean
-    public KafkaListenerContainerFactory<ConcurrentMessageListenerContainer<String,String>> kafkaListenerContainerFactory()
+    public KafkaListenerContainerFactory<ConcurrentMessageListenerContainer<String,userInfo>> kafkaListenerContainerFactory()
     {
-        ConcurrentKafkaListenerContainerFactory<String, String> factory = new ConcurrentKafkaListenerContainerFactory<>();
+        ConcurrentKafkaListenerContainerFactory<String, userInfo> factory = new ConcurrentKafkaListenerContainerFactory<>();
         factory.setConsumerFactory(consumerFactoryDup());
         factory.setConcurrency(1);
         factory.getContainerProperties().setAckMode(ContainerProperties.AckMode.MANUAL_IMMEDIATE);
+
         return factory;
     }
 

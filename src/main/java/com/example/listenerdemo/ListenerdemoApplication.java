@@ -20,7 +20,7 @@ public class ListenerdemoApplication {
         messageconsumer obj = ctx.getBean(messageconsumer.class);
 		pojoListener obj2 = ctx.getBean(pojoListener.class);
 
-		// obj.recieve();
+		 obj.recieve();
         System.out.println("program term");
 	}
 
