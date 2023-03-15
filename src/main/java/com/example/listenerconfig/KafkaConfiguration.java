@@ -1,10 +1,11 @@
 package com.example.listenerconfig;
 
+import com.example.mapinterface.objinf;
 import com.example.wrapper.userInfo;
-import org.apache.kafka.clients.consumer.Consumer;
+import com.fasterxml.jackson.databind.annotation.JsonAppend;
 import org.apache.kafka.clients.consumer.ConsumerRecord;
-import org.apache.kafka.clients.consumer.RoundRobinAssignor;
-import org.apache.kafka.common.protocol.types.Field;
+import org.apache.kafka.clients.producer.KafkaProducer;
+import org.apache.kafka.clients.producer.Producer;
 import org.apache.kafka.common.serialization.StringDeserializer;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.autoconfigure.kafka.KafkaProperties;
@@ -23,14 +24,9 @@ import org.springframework.kafka.support.serializer.ParseStringDeserializer;
 
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Properties;
 
-import static org.apache.kafka.clients.CommonClientConfigs.SECURITY_PROTOCOL_CONFIG;
 import static org.apache.kafka.clients.consumer.ConsumerConfig.*;
-import static org.apache.kafka.common.config.SslConfigs.SSL_ENABLED_PROTOCOLS_CONFIG;
-import static org.apache.kafka.common.config.SslConfigs.SSL_ENDPOINT_IDENTIFICATION_ALGORITHM_CONFIG;
-import static org.apache.kafka.common.config.SslConfigs.SSL_PROTOCOL_CONFIG;
-import static org.apache.kafka.common.config.SslConfigs.SSL_TRUSTSTORE_LOCATION_CONFIG;
-import static org.apache.kafka.common.config.SslConfigs.SSL_TRUSTSTORE_PASSWORD_DOC;
 
 @Configuration
 @EnableKafka
@@ -56,10 +52,13 @@ public class KafkaConfiguration {
         Map<String,Object> config = new HashMap<>();
         config.put(BOOTSTRAP_SERVERS_CONFIG,"localhost:29092");
         config.put(KEY_DESERIALIZER_CLASS_CONFIG, StringDeserializer.class);
-        config.put(VALUE_DESERIALIZER_CLASS_CONFIG,StringDeserializer.class);
+        config.put(VALUE_DESERIALIZER_CLASS_CONFIG,JsonDeserializer.class);
         config.put(GROUP_ID_CONFIG,"process-1");
         config.put(ENABLE_AUTO_COMMIT_CONFIG,false);
         config.put(JsonDeserializer.TRUSTED_PACKAGES,"*");
+        // type info headers packed by serializer are handled here
+        // this will supersede the class type in deserializer instance in the consumer factory if usetypeinfoheaders arg is not passed as false
+        config.put(JsonDeserializer.TYPE_MAPPINGS,"uinfo:com.example.wrapper.userInfo");
         //  config.put(PARTITION_ASSIGNMENT_STRATEGY_CONFIG, RoundRobinAssignor.class.getName());
 
         return config;
@@ -76,15 +75,18 @@ public class KafkaConfiguration {
     }
 
     // Common consumer factory for usage by kafka listener container
+    // factory value type is set to interface type
+    // type mapping setup to pick the concrete implemntation of the interface for deserizlization
     @Bean
-    public ConsumerFactory<String,userInfo> consumerFactoryDup()
+    public ConsumerFactory<String, objinf> consumerFactoryDup()
     {
         // using spring kafka json deserializer
-        // producer has type info disabled
-        // trusting all packages for deserialization
-        // can also do this trusted deserialization using properties or in the factory properties
+        // producer has type info included and type mapping configured
+        // trusting all packages for deserialization using properties
+        // can also do this trusted deserilazation using programatic construction of deserializer
+        // the below is unsafe as in the absence of type info , deserialization will fail since the type is abstract and not concrete
 
-        return new DefaultKafkaConsumerFactory<>(config_src1(), null,new JsonDeserializer<>(userInfo.class).trustedPackages("*"));
+        return new DefaultKafkaConsumerFactory<>(config_src1(),null , new JsonDeserializer<>(objinf.class).trustedPackages("*"));
     }
 
     // used by the message listener container
@@ -139,14 +141,15 @@ public class KafkaConfiguration {
     }
 
     @Bean
-    public KafkaListenerContainerFactory<ConcurrentMessageListenerContainer<String,userInfo>> kafkaListenerContainerFactory()
+    public KafkaListenerContainerFactory<ConcurrentMessageListenerContainer<String,objinf>> kafkaListenerContainerFactory()
     {
-        ConcurrentKafkaListenerContainerFactory<String, userInfo> factory = new ConcurrentKafkaListenerContainerFactory<>();
+        ConcurrentKafkaListenerContainerFactory<String, objinf> factory = new ConcurrentKafkaListenerContainerFactory<>();
         factory.setConsumerFactory(consumerFactoryDup());
         factory.setConcurrency(1);
         factory.getContainerProperties().setAckMode(ContainerProperties.AckMode.MANUAL_IMMEDIATE);
 
         return factory;
+
     }
 
 

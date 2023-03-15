@@ -1,5 +1,7 @@
 package com.example.listenerconfig;
 
+import com.example.extraMapper.empInfo;
+import com.example.mapinterface.objinf;
 import com.example.wrapper.userInfo;
 import org.apache.kafka.clients.consumer.ConsumerRecord;
 import org.springframework.kafka.annotation.EnableKafka;
@@ -13,6 +15,7 @@ import org.springframework.kafka.support.serializer.JsonDeserializer;
 import org.springframework.kafka.support.serializer.JsonSerializer;
 import org.springframework.kafka.support.serializer.ParseStringDeserializer;
 import org.springframework.kafka.support.serializer.ToStringSerializer;
+import org.springframework.messaging.MessageHeaders;
 import org.springframework.messaging.handler.annotation.Header;
 import org.springframework.messaging.handler.annotation.Headers;
 import org.springframework.stereotype.Component;
@@ -28,14 +31,14 @@ public class pojoListener {
     // batch listener
     //consumer group id is overridden
     @KafkaListener(topics = "sample-topic4",autoStartup = "${listen.auto.start:true}",groupId = "new-listener",batch = "true")
-    public void listen(List<String> data , Acknowledgment ack ,@Header(KafkaHeaders.OFFSET) List<Long> offsets)
+    public void listen(List<objinf> data , Acknowledgment ack , @Header(KafkaHeaders.OFFSET) List<Long> offsets)
     {
         String cons_id = KafkaUtils.getConsumerGroupId();
         System.out.println(cons_id.toString());
         Iterator it = data.iterator();
         while (it.hasNext()) {
 
-            System.out.println(it.next());
+            System.out.println(((objinf)it.next()).getdept());
 
         }
 
@@ -51,9 +54,9 @@ public class pojoListener {
     //individual listener
 
     @KafkaListener(topics = "sample-topic4",autoStartup = "${listen.auto.start:true}",groupId = "delta-listener")
-    public void listen_rec(userInfo data , Acknowledgment ack , ConsumerRecordMetadata cmd , @Headers Map<String,Object> header)
+    public void listen_rec(objinf data , Acknowledgment ack , ConsumerRecordMetadata cmd , @Headers Map<String,Object> header , @Headers MessageHeaders msgheaders)
     {
-        System.out.println(data.getId());
+        System.out.println(data.getid());
         System.out.println(cmd.topic()+" with partition"+cmd.partition()+"with offset"+cmd.offset());
 
         ack.acknowledge();
