@@ -30,15 +30,16 @@ import java.util.Map;
 public class pojoListener {
     // batch listener
     //consumer group id is overridden
-    @KafkaListener(topics = "sample-topic4",autoStartup = "${listen.auto.start:true}",groupId = "new-listener",batch = "true")
+   @KafkaListener(topics = "sample-topic4",autoStartup = "${listen.auto.start:true}",groupId = "new-listener",batch = "true")
     public void listen(List<objinf> data , Acknowledgment ack , @Header(KafkaHeaders.OFFSET) List<Long> offsets)
     {
         String cons_id = KafkaUtils.getConsumerGroupId();
         System.out.println(cons_id.toString());
         Iterator it = data.iterator();
         while (it.hasNext()) {
-
-            System.out.println(((objinf)it.next()).getdept());
+           objinf object = (objinf)it.next();
+           if(object!=null)
+            System.out.println(object.getdept());
 
         }
 

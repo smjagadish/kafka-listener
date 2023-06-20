@@ -3,6 +3,8 @@ package com.example.listenerconfig;
 import com.example.mapinterface.objinf;
 import com.example.wrapper.userInfo;
 import com.fasterxml.jackson.databind.annotation.JsonAppend;
+import org.apache.kafka.clients.consumer.Consumer;
+import org.apache.kafka.clients.consumer.ConsumerConfig;
 import org.apache.kafka.clients.consumer.ConsumerRecord;
 import org.apache.kafka.clients.producer.KafkaProducer;
 import org.apache.kafka.clients.producer.Producer;
@@ -19,10 +21,12 @@ import org.springframework.kafka.core.ConsumerFactory;
 import org.springframework.kafka.core.DefaultKafkaConsumerFactory;
 import org.springframework.kafka.listener.*;
 import org.springframework.kafka.support.Acknowledgment;
+import org.springframework.kafka.support.serializer.ErrorHandlingDeserializer;
 import org.springframework.kafka.support.serializer.JsonDeserializer;
 import org.springframework.kafka.support.serializer.ParseStringDeserializer;
 
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Properties;
 
@@ -51,8 +55,11 @@ public class KafkaConfiguration {
     {
         Map<String,Object> config = new HashMap<>();
         config.put(BOOTSTRAP_SERVERS_CONFIG,"localhost:29092");
-        config.put(KEY_DESERIALIZER_CLASS_CONFIG, StringDeserializer.class);
-        config.put(VALUE_DESERIALIZER_CLASS_CONFIG,JsonDeserializer.class);
+        //Jun20, 2023
+        // i change the default deserializer type to errorhandling and later delegate it
+        config.put(KEY_DESERIALIZER_CLASS_CONFIG, ErrorHandlingDeserializer.class);
+        config.put(VALUE_DESERIALIZER_CLASS_CONFIG,ErrorHandlingDeserializer.class);
+        //ends
         config.put(GROUP_ID_CONFIG,"process-1");
         config.put(ENABLE_AUTO_COMMIT_CONFIG,false);
         config.put(JsonDeserializer.TRUSTED_PACKAGES,"*");
@@ -61,6 +68,13 @@ public class KafkaConfiguration {
         config.put(JsonDeserializer.TYPE_MAPPINGS,"uinfo:com.example.wrapper.userInfo");
         //  config.put(PARTITION_ASSIGNMENT_STRATEGY_CONFIG, RoundRobinAssignor.class.getName());
 
+        //Jun20 , 2023
+        // Enhancing with support for handling poison pills with error handling deserializer
+        // logic is that we have the error handling deserializer handle poison pills and delegate to right deserializer for normal records
+        config.put(ErrorHandlingDeserializer.KEY_DESERIALIZER_CLASS,StringDeserializer.class);
+        config.put(ErrorHandlingDeserializer.VALUE_DESERIALIZER_CLASS,JsonDeserializer.class);
+        //below data is not mandatory . absence of it will cause deserialziation execption with failed to identify type info
+        config.put(JsonDeserializer.VALUE_DEFAULT_TYPE,"com.example.wrapper.userInfo");
         return config;
     }
 
@@ -86,7 +100,13 @@ public class KafkaConfiguration {
         // can also do this trusted deserilazation using programatic construction of deserializer
         // the below is unsafe as in the absence of type info , deserialization will fail since the type is abstract and not concrete
 
-        return new DefaultKafkaConsumerFactory<>(config_src1(),null , new JsonDeserializer<>(objinf.class).trustedPackages("*"));
+        // Jun20 , 2023 - commenting below return as i use error handling deserializer and define those in consumer properties
+        // will figure out if i can somehow retain the commented return stmt style
+        // update for above comment - cant use this return stmt style , so fixing the return stmt as not including k/v de-serinfo
+        //return new DefaultKafkaConsumerFactory<>(config_src1(),null , new JsonDeserializer<>(objinf.class).trustedPackages("*"));
+        // no passing of key ser and value ser in this. the delegates defined by error handling deser and type info takes care of things
+       return new DefaultKafkaConsumerFactory<>(config_src1());
+
     }
 
     // used by the message listener container
@@ -147,10 +167,24 @@ public class KafkaConfiguration {
         factory.setConsumerFactory(consumerFactoryDup());
         factory.setConcurrency(1);
         factory.getContainerProperties().setAckMode(ContainerProperties.AckMode.MANUAL_IMMEDIATE);
+        //Jun20, 2023
+        //setting common error handler to log minimal error for the injected poison pill
+        factory.setCommonErrorHandler(new CommonErrorHandler() {
+            @Override
+            public void handleRecord(Exception thrownException, ConsumerRecord<?, ?> record, Consumer<?, ?> consumer, MessageListenerContainer container) {
+           System.out.println("encountered an exception- going with minimal log");
 
+            }
+
+            @Override
+            public void handleRemaining(Exception thrownException, List<ConsumerRecord<?, ?>> records, Consumer<?, ?> consumer, MessageListenerContainer container) {
+            System.out.println("lets see if this gets printed");
+            }
+        });
+
+   
         return factory;
 
     }
-
 
 }
