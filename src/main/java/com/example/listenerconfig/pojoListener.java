@@ -6,6 +6,7 @@ import com.example.wrapper.userInfo;
 import org.apache.kafka.clients.consumer.ConsumerRecord;
 import org.springframework.kafka.annotation.EnableKafka;
 import org.springframework.kafka.annotation.KafkaListener;
+import org.springframework.kafka.listener.BatchListenerFailedException;
 import org.springframework.kafka.listener.adapter.ConsumerRecordMetadata;
 import org.springframework.kafka.support.Acknowledgment;
 import org.springframework.kafka.support.KafkaHeaders;
@@ -35,11 +36,24 @@ public class pojoListener {
     {
         String cons_id = KafkaUtils.getConsumerGroupId();
         System.out.println(cons_id.toString());
+        //Jul 10 , 2023 changes to throw batch listener exception when encountering certain record types
+        // this is for sake of understanding and wont actually get triggered
+        // intent is to let know the listener from which record in batch the processing failed so that it can be re-tried during next fetch
+        int index =0;
         Iterator it = data.iterator();
         while (it.hasNext()) {
            objinf object = (objinf)it.next();
-           if(object!=null)
-            System.out.println(object.getdept());
+           if(object!=null) {
+               System.out.println(object.getdept());
+               if(object.getdept().equals("CSE"))
+               throw new BatchListenerFailedException("dummy exception",index);
+               else
+                   index++;
+           }
+           else {
+               System.out.println("error handling deser passed down the puck");
+               index++;
+           }
 
         }
 

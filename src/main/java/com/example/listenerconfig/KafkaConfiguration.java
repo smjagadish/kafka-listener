@@ -6,6 +6,7 @@ import com.fasterxml.jackson.databind.annotation.JsonAppend;
 import org.apache.kafka.clients.consumer.Consumer;
 import org.apache.kafka.clients.consumer.ConsumerConfig;
 import org.apache.kafka.clients.consumer.ConsumerRecord;
+import org.apache.kafka.clients.consumer.ConsumerRecords;
 import org.apache.kafka.clients.producer.KafkaProducer;
 import org.apache.kafka.clients.producer.Producer;
 import org.apache.kafka.common.serialization.StringDeserializer;
@@ -169,7 +170,12 @@ public class KafkaConfiguration {
         factory.getContainerProperties().setAckMode(ContainerProperties.AckMode.MANUAL_IMMEDIATE);
         //Jun20, 2023
         //setting common error handler to log minimal error for the injected poison pill
-        factory.setCommonErrorHandler(new CommonErrorHandler() {
+        //Jun27 , 2023
+        // use DefaultErrorHandler for the commonErrorHandler setter
+        // per my tests , this is not called for batch listeners when having de-serialization errors. only normal listeners will have this invocation triggered
+        // for normal listener , after the invocation is triggered, the offset is ack'd
+        // for batch listener , the record is passed with null data to the listener. i have not figured how to leverage error handler still
+        factory.setCommonErrorHandler(new DefaultErrorHandler() {
             @Override
             public void handleRecord(Exception thrownException, ConsumerRecord<?, ?> record, Consumer<?, ?> consumer, MessageListenerContainer container) {
            System.out.println("encountered an exception- going with minimal log");
@@ -179,6 +185,12 @@ public class KafkaConfiguration {
             @Override
             public void handleRemaining(Exception thrownException, List<ConsumerRecord<?, ?>> records, Consumer<?, ?> consumer, MessageListenerContainer container) {
             System.out.println("lets see if this gets printed");
+            }
+
+            @Override
+            public void handleBatch(Exception thrownException, ConsumerRecords<?, ?> data, Consumer<?, ?> consumer, MessageListenerContainer container, Runnable invokeListener) {
+                System.out.println("for batch");
+                System.out.println(data.iterator().next());
             }
         });
 
