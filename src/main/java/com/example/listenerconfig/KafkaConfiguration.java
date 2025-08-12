@@ -22,9 +22,12 @@ import org.springframework.kafka.core.ConsumerFactory;
 import org.springframework.kafka.core.DefaultKafkaConsumerFactory;
 import org.springframework.kafka.listener.*;
 import org.springframework.kafka.support.Acknowledgment;
+import org.springframework.kafka.support.converter.JsonMessageConverter;
+import org.springframework.kafka.support.converter.RecordMessageConverter;
 import org.springframework.kafka.support.serializer.ErrorHandlingDeserializer;
 import org.springframework.kafka.support.serializer.JsonDeserializer;
 import org.springframework.kafka.support.serializer.ParseStringDeserializer;
+import org.springframework.messaging.Message;
 
 import java.util.HashMap;
 import java.util.List;
@@ -197,6 +200,20 @@ public class KafkaConfiguration {
    
         return factory;
 
+    }
+    // Aug10 2023 - Test this message converter later
+    // I personally do not see the need for message converter if we can play around with type mappings
+    // work on this later to see how we can leverage this to our advantage
+    @Bean
+    public RecordMessageConverter converter()
+    {
+        return new JsonMessageConverter(){
+            @Override
+            protected Object convertPayload(Message<?> message) {
+
+                return super.convertPayload(message);
+            }
+        };
     }
 
 }
